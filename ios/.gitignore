@@ -1,0 +1,6 @@
+build
+project{*}.xcodeproj
+archive
+ipa
+project/Yijie/*_ios
+node_modules
