@@ -126,7 +126,6 @@ open class YiJieActivity(gateUrl: String,id:Int,layout:Int) : Activity(), SFOnli
     }
 
     override fun onBackPressed() {
-        super.onBackPressed()
         onExit()
     }
 
@@ -263,13 +262,11 @@ open class YiJieActivity(gateUrl: String,id:Int,layout:Int) : Activity(), SFOnli
              *  @description　SDK没有退出方法及界面，回调该函数，可在此使用游戏退出界面
              */
             override fun onNoExiterProvide() {
-                val builder = AlertDialog.Builder(this@YiJieActivity)
-                builder.setTitle("游戏自带退出界面")
-                builder.setPositiveButton("退出"
+                val builder = AlertDialog.Builder(this@YiJieActivity).setTitle("退出游戏").setPositiveButton("退出"
                 ) { _, _ ->
-                    this@YiJieActivity.finish()
-                    //System.exit(0);
+                    this@YiJieActivity.exit()
                 }
+                .setNegativeButton("继续游戏"){ dialogInterface: DialogInterface, i: Int -> }
                 builder.show()
             }
         })
