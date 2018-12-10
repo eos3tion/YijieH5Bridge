@@ -132,7 +132,9 @@
 }
 
 -(void) login {
-    [YiJieOnlineHelper login: @"login"];
+    dispatch_async(dispatch_get_main_queue(), ^{
+        [YiJieOnlineHelper login: @"login"];
+    });
 }
 - (BOOL) shouldAutorotate{
     return NO;
