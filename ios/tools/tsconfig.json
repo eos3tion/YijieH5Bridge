@@ -3,6 +3,14 @@
     "target": "es2017",
     "module": "commonjs",
     "strict": true,
-    "esModuleInterop": true
-  }
+    "esModuleInterop": true,
+    "noImplicitAny": false,
+    "noImplicitThis": false,
+    "allowJs": true,
+    "checkJs": true,
+    "maxNodeModuleJsDepth": 3
+  },
+  "exclude": [
+    "node_modules"
+  ]
 }

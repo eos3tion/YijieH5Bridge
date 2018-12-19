@@ -4,8 +4,10 @@
 import * as fs from "fs";
 import * as cp from "child_process";
 import * as path from "path";
-import { DOMParser as dom, XMLSerializer } from "xmldom";
-import * as xpath from "xpath";
+import * as plist from "simple-plist";
+import { XProj, getPlistPBXProj } from "./pbxHelper";
+import * as xcode from "xcode";
+
 const AppName = "项目名称自行替换";
 function run(baseDir: string) {
     let files = fs.readdirSync(baseDir);
@@ -14,41 +16,33 @@ function run(baseDir: string) {
         const file = files[i];
         let reg = new RegExp(`${AppName}\\{([^}]+)\\}\\.xcodeproj`)
         if (reg.test(file)) {
-            let name = RegExp.$1;
-            let xarchive = `./archive/${AppName}_${name}.xcarchive`;
+            let channelID = RegExp.$1;
+            let xarchive = `./archive/${AppName}_${channelID}.xcarchive`;
             //检查文件是否有`libstdc++`，如果有，就干掉
             let pbxproj = path.join(file, "project.pbxproj");
             if (fs.existsSync(pbxproj)) {
-                let content = fs.readFileSync(pbxproj, "utf8");
-                if (!content.startsWith("//")) {//旧版xml的
-                    let xml = new dom().parseFromString(content);
-                    let nodes = xpath.select("/plist/dict/dict/dict", xml) as Node[];
-                    let libstdcs = nodes.filter(node => (node as any).textContent.indexOf("libstdc") > -1);
-                    if (libstdcs) {
-                        let willDeleted = [] as any[];
-                        libstdcs.forEach(node => {
-                            willDeleted.push(node);
-                            let prev = node.previousSibling;
-                            while (prev) {
-                                if ((prev as any).localName == "key") {
-                                    willDeleted.push(prev);
-                                    break;
-                                }
-                                prev = prev.previousSibling;
-                            }
-                        })
-                        willDeleted.forEach(node => {
-                            xml.removeChild(node);
-                        });
-                        let s = new XMLSerializer();
-                        fs.writeFileSync(pbxproj, s.serializeToString(xml));
-
-                    }
+                let content = fs.readFileSync(pbxproj);
+                let _20w = content.toString("utf8", 0, 20);
+                let config: XProj;
+                if (_20w.startsWith("// !$*UTF8*$!")) { //由当前版本编辑器，打开过的项目转换后的文件
+                    let proj = xcode.project(pbxproj);
+                    config = proj.parseSync();
+                } else {
+                    let plistData = plist.parse(content);
+                    clearOldModule(plistData);
+                    config = getPlistPBXProj(plistData, pbxproj);
                 }
+
+                //检查是否要替换闪屏
+                checkLaunchScreen(channelID, config);
+
+                //储存文件
+                let cnt = config.writeSync();
+                fs.writeFileSync(pbxproj, cnt);
             }
             let result = exec({ cmd: "xcodebuild", cwd: baseDir }, "-project", file, "-configuration", "Release", "-UseModernBuildSystem=NO", "-archivePath", xarchive, "clean", "archive", "-scheme", AppName);
             if (result.status == 0) {
-                let result = exec({ cmd: "xcodebuild", cwd: baseDir }, "-project", file, "-configuration", "Release", "-UseModernBuildSystem=NO", "-archivePath", xarchive, "clean", "archive", "-exportPath", `./ipa/${AppName}_${name}`, "-exportOptionsPlist", "exportOptionsAdHoc.plist", "-exportArchive")
+                let result = exec({ cmd: "xcodebuild", cwd: baseDir }, "-project", file, "-configuration", "Release", "-UseModernBuildSystem=NO", "-archivePath", xarchive, "clean", "archive", "-exportPath", `./ipa/${AppName}_${channelID}`, "-exportOptionsPlist", "exportOptionsAdHoc.plist", "-exportArchive")
                 if (result.status == 0) {
                     continue;
                 }
@@ -80,6 +74,56 @@ function exec(opt: string | { cmd?: string, cwd?: string, notThrowError?: boolea
         console.log(result.stdout);
     }
     return result;
+}
+
+function clearOldModule(plistData) {
+    Object.keys(plistData).forEach(key => {
+        let val = plistData[key];
+        let tov = typeof val;
+        if (tov === "string") {
+            if (val.indexOf("libstdc") > -1) {
+                delete plistData[key];
+            }
+        } else if (tov === "object") {
+            if (val) {
+                clearOldModule(val);
+            }
+        }
+    })
+}
+
+
+/**
+ * 变更启动页
+ */
+function changeLaunch(proj: XProj, channelID: string, imgFile: string, basePath: string) {
+    let fileName = "Launch.storyboard";
+    const dstImgFileName = "LaunchImg.jpg";
+    let Launch = path.join(path.dirname(__filename), "assets", fileName);
+    //将文件拷贝到对应项目
+    const groupKey = "YiJie";
+    let group = proj.getPBXGroupByKey(groupKey);
+    if (group) {
+        let chnPath = `${channelID}_ios`;
+        let rPath = path.join(chnPath, fileName);
+        let rImgPath = path.join(chnPath, dstImgFileName);
+        let groupPath = path.join(basePath, group.path);
+        fs.copyFileSync(Launch, path.join(groupPath, rPath));
+        fs.copyFileSync(imgFile, path.join(groupPath, rImgPath));
+        //添加项目文件
+        proj.addResourceFile(rPath, null, groupKey);
+        proj.addResourceFile(rImgPath, null, groupKey);
+
+        //替换LaunchScreen
+        let plistfile = path.join(groupPath, chnPath, "Info.plist");
+        let infoData = plist.readFileSync(plistfile);
+        infoData.UILaunchStoryboardName = "Launch";
+        plist.writeFileSync(plistfile, infoData);
+    }
+}
+
+function checkLaunchScreen(channelID: string, proj: XProj) {
+    
 }
 
 run("./");
