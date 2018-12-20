@@ -27,7 +27,6 @@ function checkPlistPBXProj(content: Buffer, file: string) {
 }
 export function getPlistPBXProj(plistData, file: string) {
     let proj = new xcode.project("");
-    (proj as any).productName = "$(TARGET_NAME)";
     proj.filepath = file;
     Object.setPrototypeOf(proj, xcode.project.prototype);
     let objects = plistData.objects;
@@ -38,7 +37,7 @@ export function getPlistPBXProj(plistData, file: string) {
     }
     let grouped = {} as { [key: string]: any };
     plistData.objects = grouped;
-    formatEmptyString(objects);
+    formatString(objects);
 
     //遍历
     for (let key in objects) {
@@ -126,6 +125,9 @@ export function getPlistPBXProj(plistData, file: string) {
     })
     return proj;
     function setComment(datas: { [key: string]: any }, ...childListKeys: string[]) {
+        if (!datas) {
+            return;
+        }
         Object.keys(datas).forEach(key => {
             let data = datas[key];
             let comment = data.name || data.path;
@@ -179,17 +181,22 @@ export function getPlistPBXProj(plistData, file: string) {
             }
         }
     }
-    function formatEmptyString(objects: { [hash: string]: any }) {
+    function formatString(objects: { [hash: string]: any }) {
         for (let key in objects) {
             let obj = objects[key];
             let too = typeof obj;
-            if (too === "string") {
-                if (obj === "") {
-                    objects[key] = `""`;
+            if (obj == null) {
+                obj = "";
+                too = "string";
+            }
+            if (too === "string") {                
+                if (obj === "" || /\s|[<>\-+@$\\()|*=]/.test(obj)) {
+                    objects[key] = `"${obj}"`;
                 }
-            } else if (too === "object") {
+            }
+            else if (too === "object") {
                 if (obj) {
-                    formatEmptyString(obj);
+                    formatString(obj);
                 }
             }
         }

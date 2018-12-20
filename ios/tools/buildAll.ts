@@ -14,7 +14,7 @@ function run(baseDir: string) {
     let failed = [] as string[];
     for (let i = 0; i < files.length; i++) {
         const file = files[i];
-        let reg = new RegExp(`${AppName}\\{([^}]+)\\}\\.xcodeproj`)
+        let reg = new RegExp(`${AppName}\\{([^}]+)_ios\\}\\.xcodeproj`)
         if (reg.test(file)) {
             let channelID = RegExp.$1;
             let xarchive = `./archive/${AppName}_${channelID}.xcarchive`;
@@ -101,19 +101,27 @@ function changeLaunch(proj: XProj, channelID: string, imgFile: string, basePath:
     const dstImgFileName = "LaunchImg.jpg";
     let Launch = path.join(path.dirname(__filename), "assets", fileName);
     //将文件拷贝到对应项目
-    const groupKey = "YiJie";
-    let group = proj.getPBXGroupByKey(groupKey);
-    if (group) {
+    let groupKey = proj.findPBXGroupKey({ name: "Yijie" });
+    if (groupKey) {
+        let group = proj.getPBXGroupByKey(groupKey);
         let chnPath = `${channelID}_ios`;
         let rPath = path.join(chnPath, fileName);
         let rImgPath = path.join(chnPath, dstImgFileName);
         let groupPath = path.join(basePath, group.path);
+        //添加项目文件
+        let f = proj.hasFile(rPath);
+        if(!f){
+            f = proj.addResourceFile(rPath, { lastKnownFileType: "file.storyboard" },groupKey);
+        }
+        proj.addToPbxResourcesBuildPhase(f);
+        f = proj.hasFile(rImgPath);
+        if(!f){
+            f = proj.addResourceFile(rImgPath, { lastKnownFileType: "image.png" }, groupKey);
+        }
+        proj.addToPbxResourcesBuildPhase(f);
+       
         fs.copyFileSync(Launch, path.join(groupPath, rPath));
         fs.copyFileSync(imgFile, path.join(groupPath, rImgPath));
-        //添加项目文件
-        proj.addResourceFile(rPath, null, groupKey);
-        proj.addResourceFile(rImgPath, null, groupKey);
-
         //替换LaunchScreen
         let plistfile = path.join(groupPath, chnPath, "Info.plist");
         let infoData = plist.readFileSync(plistfile);
@@ -122,8 +130,15 @@ function changeLaunch(proj: XProj, channelID: string, imgFile: string, basePath:
     }
 }
 
+let channels = JSON.parse(fs.readFileSync(path.join(__dirname, "assets", "1sdk.json"), "utf8"));
+
 function checkLaunchScreen(channelID: string, proj: XProj) {
-    
+    //检查配置
+    let img = channels[channelID];
+    if (img) {
+        changeLaunch(proj, channelID, path.join(__dirname, "assets", "launchimgs", img), path.join(__dirname, ".."))
+    }
 }
+
 
 run("./");
