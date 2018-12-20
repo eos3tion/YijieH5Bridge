@@ -1,4 +1,4 @@
-package jy.yijie
+package com.yijie
 
 import android.app.Activity
 import android.app.AlertDialog
@@ -9,9 +9,8 @@ import android.os.Bundle
 import android.util.Log
 import android.view.View
 import android.webkit.WebView
+import com.alibaba.fastjson.JSON
 import com.github.kittinunf.fuel.httpGet
-import com.google.gson.Gson
-import com.google.gson.reflect.TypeToken
 import com.snowfish.cn.ganga.helper.SFOnlineExitListener
 import com.snowfish.cn.ganga.helper.SFOnlineHelper
 import com.snowfish.cn.ganga.helper.SFOnlineLoginListener
@@ -49,12 +48,14 @@ open class YiJieActivity(gateUrl: String,id:Int,layout:Int) : Activity(), SFOnli
         JSBridge(this, v)
         YiJieJSAPI(this, v)
         JSSupport(this, v)
-
-        initSDK()
-
+        runOnUiThread {
+            initSDK()
+        }
     }
 
     private fun initSDK() {
+        Log.v("step", "准备初始化调用 SFOnlineHelper.setLoginListener")
+        SFOnlineHelper.setLoginListener(this, this)
         Log.v("step", "准备初始化调用 SFOnlineHelper.onCreate")
         SFOnlineHelper.onCreate(this) { tag, value ->
             if (tag == "success") {//初始化成功
@@ -75,9 +76,6 @@ open class YiJieActivity(gateUrl: String,id:Int,layout:Int) : Activity(), SFOnli
                 }
             }
         }
-
-        Log.v("step", "准备初始化调用 SFOnlineHelper.setLoginListener")
-        SFOnlineHelper.setLoginListener(this, this)
         Log.v("step", "initSDK end")
     }
 
@@ -158,19 +156,29 @@ open class YiJieActivity(gateUrl: String,id:Int,layout:Int) : Activity(), SFOnli
             val (jsonString, error) = result
             Log.v("step", "gateCallBack:$jsonString")
             if (error == null) {
-                val (code, data) = Gson().fromJson<GateResponse>(jsonString!!, genericType<GateResponse>())
-                if (code == null) {
-                    if (data != null) {
-                        //登陆游戏
-                        val v = findViewById<WebView>(webViewID)
-                        val url = "${data.loginurl}${URLEncoder.encode(Gson().toJson(data), "utf-8")}"
-                        Log.v("url", url)
-                        runOnUiThread {
-                            v.loadUrl(url)
+                try {
+                    val map= JSON.parse(jsonString!!) as Map<String, Map<String,*>>
+                    val code = map["code"]
+                    val data = map["data"]
+                    if (code == null) {
+                        if (data != null) {
+                            //登陆游戏
+                            val v = findViewById<WebView>(webViewID)
+                            val url = "${data["loginurl"]}${URLEncoder.encode(JSON.toJSONString(data), "utf-8")}"
+                            Log.v("url", url)
+                            runOnUiThread {
+                                v.loadUrl(url)
+                            }
+                            return@responseString
                         }
-                        return@responseString
+                    } else {
+                        Log.v("step", "gateCallBack has code ${code["code"]}")
                     }
+                } catch (e: Exception) {
+                    Log.v("httpResult", "gateCallBack has exception:${e.message}")
                 }
+            } else {
+                Log.e("httpResult", "error${error.message}")
             }
             runOnUiThread {
                 val dialog = AlertDialog.Builder(this)
@@ -266,45 +274,9 @@ open class YiJieActivity(gateUrl: String,id:Int,layout:Int) : Activity(), SFOnli
                 ) { _, _ ->
                     this@YiJieActivity.exit()
                 }
-                .setNegativeButton("继续游戏"){ dialogInterface: DialogInterface, i: Int -> }
+                    .setNegativeButton("继续游戏") { dialogInterface: DialogInterface, i: Int -> }
                 builder.show()
             }
         })
     }
-
-    private inline fun <reified T> genericType() = object : TypeToken<T>() {}.type
-
-    data class Code(
-            val state: String?,
-            val code: String?,
-            val param: List<String>?
-    )
-
-    data class GateData(
-            val loginurl: String,
-            val servers: String?,
-            val names: List<NameData>?,
-            val uid: String,
-            val sign: String,
-            val time: String,
-            val cminfo: Int?,
-            val extra: String?,
-            val cmurl: String?,
-            val pid: String?,
-            val payurl: String?,
-            val statsurl: String?,
-            val statsid: String?
-
-    )
-
-    data class NameData(
-            val name: String,
-            val min: Int?,
-            val idx: Int?
-    )
-
-    data class GateResponse(
-            val code: Code?,
-            val data: GateData?
-    )
 }
