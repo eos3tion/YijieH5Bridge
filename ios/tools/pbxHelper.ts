@@ -29,38 +29,60 @@ export function getPlistPBXProj(plistData, file: string) {
     let proj = new xcode.project("");
     proj.filepath = file;
     Object.setPrototypeOf(proj, xcode.project.prototype);
-    let objects = plistData.objects;
-    let projectName = objects[objects[plistData.rootObject].targets[0]].name;
+    let rawObjects = plistData.objects;
+    let projectName = rawObjects[rawObjects[plistData.rootObject].targets[0]].name;
     proj.hash = {
         headComment: "!$*UTF8*$!",
         project: plistData
     }
     let grouped = {} as { [key: string]: any };
     plistData.objects = grouped;
-    formatString(objects);
+    // formatString(rawObjects);
 
     //遍历
-    for (let key in objects) {
-        let obj = objects[key];
+    for (let hash in rawObjects) {
+        let obj = rawObjects[hash];
         let isa = obj.isa;
         if (isa) {
             let group = grouped[isa];
             if (!group) {
                 grouped[isa] = group = {};
             }
-            group[key] = obj;
+            group[hash] = format(obj);
         }
     }
 
     //构建 comment
-    let { PBXProject, XCConfigurationList, PBXNativeTarget, PBXFileReference, PBXBuildFile, XCBuildConfiguration } = grouped;
-    let BuildPhase = {} as { [hash: string]: any };
-    for (let key in grouped) {
-        if (/PBX(.*?)BuildPhase/.test(key)) {
-            BuildPhase[key] = {
-                comment: RegExp.$1,
-                resourceFiles: {}
-            };
+    let { PBXProject, XCConfigurationList, PBXNativeTarget, PBXFileReference, PBXBuildFile, XCBuildConfiguration, PBXVariantGroup } = grouped;
+    let varDict = {} as { [hash: string]: any };
+    for (let hash in PBXVariantGroup) {
+        let variant = rawObjects[hash];
+        if (variant) {
+            variant.children.forEach(key => {
+                varDict[key] = variant;
+            })
+        }
+    }
+    let fileInGroupComment = {} as { [hash: string]: string };
+    for (let isa in grouped) {
+        if (/PBX(.*?)BuildPhase/.test(isa)) {
+            let groups = grouped[isa];
+            let commentName = RegExp.$1;
+            Object.keys(groups).forEach(key => {
+                let group = groups[key];
+                let files = group.files;
+                for (let i = 0; i < files.length; i++) {
+                    const hash = files[i];
+                    let name = getCommentWithHash(hash);
+                    let comment = `${name} in ${commentName}`;
+                    files[i] = {
+                        value: hash,
+                        comment
+                    }
+                    fileInGroupComment[hash] = comment;
+                }
+                groups[getCommentKey(key)] = commentName;
+            })
         }
     }
     setComment(PBXFileReference);
@@ -68,33 +90,15 @@ export function getPlistPBXProj(plistData, file: string) {
     Object.keys(PBXBuildFile).forEach(key => {
         let obj = PBXBuildFile[key];
         let fileRef = obj.fileRef;
-        let file = PBXFileReference[fileRef];
-        if (file) {
-            let name = file.name || file.path;
-            obj.fileRef_comment = name;
-            //检查文件是否在资源文件中
-            let comment = findResComment(key, name);
-            PBXBuildFile[getComment(key)] = comment;
+        let name = getCommentWithHash(fileRef);
+        obj.fileRef_comment = name;
+        let comment = fileInGroupComment[fileRef];
+        if (comment) {
+            PBXBuildFile[getCommentKey(key)] = comment;
         } else {
-            file = objects[fileRef];
-            if (file) {
-                let name = file.name || file.path;
-                obj.fileRef_comment = name;
-                PBXBuildFile[getComment(key)] = `${name} in Resources`;
-            }
+            PBXBuildFile[getCommentKey(key)] = `${name} in Resources`;
         }
     })
-
-    //替换resource文件
-    for (let bkey in BuildPhase) {
-        let { resourceFiles, comment } = BuildPhase[bkey];
-        for (let key in resourceFiles) {
-            let phase = grouped[bkey];
-            let obj = phase[key]
-            phase[getComment(key)] = comment;
-            obj.files = resourceFiles[key];
-        }
-    }
 
     for (let key in grouped) {
         if (key.endsWith("Group")) {
@@ -115,13 +119,13 @@ export function getPlistPBXProj(plistData, file: string) {
             let cfgList = XCConfigurationList[hash];
             if (cfgList) {
                 let comment = `Build configuration list for ${proKey} "${projectName}${idx++ || ""}"`;
-                XCConfigurationList[getComment(hash)] = comment;
+                XCConfigurationList[getCommentKey(hash)] = comment;
                 proj.buildConfigurationList_comment = comment;
             }
         }
     });
     Object.keys(PBXProject).forEach(key => {
-        PBXProject[getComment(key)] = "Project object";
+        PBXProject[getCommentKey(key)] = "Project object";
     })
     return proj;
     function setComment(datas: { [key: string]: any }, ...childListKeys: string[]) {
@@ -130,17 +134,17 @@ export function getPlistPBXProj(plistData, file: string) {
         }
         Object.keys(datas).forEach(key => {
             let data = datas[key];
-            let comment = data.name || data.path;
+            let comment = getCommentWithHash(key);
             if (comment) {
-                datas[getComment(key)] = comment;
+                datas[getCommentKey(key)] = comment;
             }
             childListKeys.forEach(ck => {
                 let children = data[ck];
                 if (children && Array.isArray(children)) {
                     for (let i = 0; i < children.length; i++) {
                         const child = children[i];
-                        let dat = objects[child];
-                        let comment = dat.name || dat.path;
+                        let dat = rawObjects[child];
+                        let comment = getComment(dat);
                         if (!comment) {
                             let isa = dat.isa;
                             if (/PBX(.*?)BuildPhase/.test(isa)) {
@@ -157,48 +161,54 @@ export function getPlistPBXProj(plistData, file: string) {
             })
         });
     }
-
-    function getComment(key: string) {
-        return `${key}_comment`
+    function getComment(file) {
+        return file.name || file.path;
     }
-    function findResComment(key: string, name: string) {
-        for (let bkey in BuildPhase) {
-            let { resourceFiles, comment: commentName } = BuildPhase[bkey];
-            let resource = grouped[bkey];
-            for (let k in resource) {
-                if (resource[k].files.indexOf(key) > -1) {
-                    let comment = `${name} in ${commentName}`;
-                    let files = resourceFiles[k];
-                    if (!files) {
-                        resourceFiles[k] = files = [];
-                    }
-                    files.push({
-                        value: key,
-                        comment
-                    })
-                    return comment;
-                }
+    function getCommentWithHash(hash: string) {
+        //检查是否在VariantGroup中
+        let variant = varDict[hash];
+        if (variant) {
+            return variant.name;
+        }
+        let file = rawObjects[hash];
+        if (file) {
+            let ref = file.fileRef;
+            if (ref) {
+                return getCommentWithHash(ref);
             }
+            return getComment(file);
         }
     }
-    function formatString(objects: { [hash: string]: any }) {
+
+    function getCommentKey(key: string) {
+        return `${key}_comment`
+    }
+
+    function format(objects: { [key: string]: any }, output: { [key: string]: any } = {}) {
         for (let key in objects) {
             let obj = objects[key];
             let too = typeof obj;
+            let out = obj;
             if (obj == null) {
                 obj = "";
                 too = "string";
             }
-            if (too === "string") {                
+            if (too === "string") {
                 if (obj === "" || /\s|[<>\-+@$\\()|*=]/.test(obj)) {
-                    objects[key] = `"${obj}"`;
+                    out = `"${obj}"`;
                 }
             }
             else if (too === "object") {
                 if (obj) {
-                    formatString(obj);
+                    let out = Array.isArray(obj) ? [] : {};
+                    format(obj, out);
+                    if (Array.isArray(obj) && obj.length == 1) {
+                        out = out[0];
+                    }
                 }
             }
+            output[key] = out;
         }
+        return output;
     }
 }

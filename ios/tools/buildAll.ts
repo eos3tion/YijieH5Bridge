@@ -110,16 +110,13 @@ function changeLaunch(proj: XProj, channelID: string, imgFile: string, basePath:
         let groupPath = path.join(basePath, group.path);
         //添加项目文件
         let f = proj.hasFile(rPath);
-        if(!f){
-            f = proj.addResourceFile(rPath, { lastKnownFileType: "file.storyboard" },groupKey);
+        if (!f) {
+            f = proj.addResourceFile(rPath, { lastKnownFileType: "file.storyboard" }, groupKey);
         }
-        proj.addToPbxResourcesBuildPhase(f);
         f = proj.hasFile(rImgPath);
-        if(!f){
+        if (!f) {
             f = proj.addResourceFile(rImgPath, { lastKnownFileType: "image.png" }, groupKey);
         }
-        proj.addToPbxResourcesBuildPhase(f);
-       
         fs.copyFileSync(Launch, path.join(groupPath, rPath));
         fs.copyFileSync(imgFile, path.join(groupPath, rImgPath));
         //替换LaunchScreen
