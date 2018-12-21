@@ -200,7 +200,7 @@ export function getPlistPBXProj(plistData, file: string) {
             }
             else if (too === "object") {
                 if (obj) {
-                    let out = Array.isArray(obj) ? [] : {};
+                    out = Array.isArray(obj) ? [] : {};
                     format(obj, out);
                     if (Array.isArray(obj) && obj.length == 1) {
                         out = out[0];
