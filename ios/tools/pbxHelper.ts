@@ -1,4 +1,4 @@
-import * as xcode from "xcode";
+import { project as pbxProj } from "xcode";
 import * as plist from "simple-plist";
 import * as fs from "fs";
 
@@ -13,7 +13,7 @@ export function getProject(file: string) {
     let _20w = content.toString("utf8", 0, 20);
     let config: XProj;
     if (_20w.startsWith("// !$*UTF8*$!")) { //由当前版本编辑器，打开过的项目转换后的文件
-        let proj = xcode.project(file);
+        let proj = new pbxProj(file);
         config = proj.parseSync();
     } else { //xcode 7.3.1 之前的项目文件，`易接`生成此类型的文件
         config = checkPlistPBXProj(content, file)
@@ -26,9 +26,8 @@ function checkPlistPBXProj(content: Buffer, file: string) {
     return getPlistPBXProj(plistData, file);
 }
 export function getPlistPBXProj(plistData, file: string) {
-    let proj = new xcode.project("");
+    let proj = new pbxProj(".");
     proj.filepath = file;
-    Object.setPrototypeOf(proj, xcode.project.prototype);
     let rawObjects = plistData.objects;
     let projectName = rawObjects[rawObjects[plistData.rootObject].targets[0]].name;
     proj.hash = {
