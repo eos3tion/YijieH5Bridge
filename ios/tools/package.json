@@ -19,6 +19,6 @@
   "dependencies": {
     "@types/node": "^10.12.17",
     "@types/plist": "^3.0.1",
-    "xcode": "^1.0.0"
+    "xcode": "git+https://github.com/apache/cordova-node-xcode.git"
   }
 }
