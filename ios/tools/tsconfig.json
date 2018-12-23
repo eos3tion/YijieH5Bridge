@@ -3,11 +3,11 @@
     "target": "es2017",
     "module": "commonjs",
     "strict": true,
-    "esModuleInterop": true,
     "noImplicitAny": false,
     "noImplicitThis": false,
     "allowJs": true,
     "checkJs": true,
+    "sourceMap": false,
     "maxNodeModuleJsDepth": 3
   },
   "exclude": [
