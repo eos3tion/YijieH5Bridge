@@ -154,8 +154,8 @@ open class YiJieActivity(gateUrl: String,id:Int,layout:Int) : Activity(), SFOnli
         gateUrl.httpGet().responseString { _, _, result ->
             hideProgress()
             val (jsonString, error) = result
-            Log.v("step", "gateCallBack:$jsonString")
             if (error == null) {
+            Log.v("step", "gateCallBack:$jsonString")
                 try {
                     val map= JSON.parse(jsonString!!) as Map<String, Map<String,*>>
                     val code = map["code"]
