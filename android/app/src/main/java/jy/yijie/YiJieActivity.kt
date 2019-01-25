@@ -65,7 +65,7 @@ open class YiJieActivity(gateUrl: String,id:Int,layout:Int) : Activity(), SFOnli
                 Log.v("init", "fail,$value")
                 runOnUiThread {
                     hideProgress()
-                    val dialog = android.support.v7.app.AlertDialog.Builder(this@YiJieActivity)
+                    val dialog = AlertDialog.Builder(this@YiJieActivity)
                             .setMessage("登陆失败")
                             .setTitle("提示")
                             .setNegativeButton("退出游戏") { _: DialogInterface, _: Int ->
@@ -216,7 +216,7 @@ open class YiJieActivity(gateUrl: String,id:Int,layout:Int) : Activity(), SFOnli
         Log.v("step", "onLoginFailed")
         runOnUiThread {
             hideProgress()
-            val dialog = android.support.v7.app.AlertDialog.Builder(this)
+            val dialog = AlertDialog.Builder(this)
                     .setMessage("登陆失败")
                     .setTitle("提示")
                     .setPositiveButton("重新登陆") { _: DialogInterface, _: Int ->

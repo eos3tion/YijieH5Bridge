@@ -27,7 +27,7 @@ class JSSupport(private var c: Activity, v: WebView) {
     /**
      * 获取电量🔋的API
      */
-    @RequiresApi(Build.VERSION_CODES.LOLLIPOP)
+    @TargetApi(Build.VERSION_CODES.LOLLIPOP)
     @JavascriptInterface
     fun js_getBattery(): Int {
         val ba = c.getSystemService(Context.BATTERY_SERVICE) as BatteryManager
